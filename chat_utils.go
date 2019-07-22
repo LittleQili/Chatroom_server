@@ -1,4 +1,4 @@
-package chatroom_e
+package chatroom
 
 import (
 	"fmt"
@@ -33,4 +33,9 @@ func PrintErr(msg string) {
 //print message receive from some client
 func PrintClientMsg(msg string) {
 	fmt.Printf(COLOR_GREEN+CHAT_MSG+COLOR_RESET, GetCurrentTimeString(), msg)
+}
+
+func PrintRegister(name,password string)  {
+	fmt.Printf(GetCurrentTimeString())
+	fmt.Printf("user: %s regist.it's password is: %s\n",name,password)
 }
