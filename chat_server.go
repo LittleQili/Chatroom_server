@@ -20,7 +20,7 @@ var (
 //关于信息的解码问题：统一采用两位字母表示。
 //RG：register
 //LI:login
-var user_record []net.Conn
+var mainwin_record []net.Conn
 //data structure of server
 type ChatServer struct {
 	listenAddr string
@@ -40,7 +40,7 @@ func (server ChatServer) StartListen() {
 	//start listen on the address given
 	listener, err := net.Listen(LISTEN_TCP, server.listenAddr)
 	server.listener = listener
-	user_record = make([]net.Conn,0,5)//这里暂时设定为5
+	mainwin_record = make([]net.Conn,0,3)//这里暂时设定为5
 	//exit when server listen fail
 	if err != nil {
 		PrintErr(err.Error())
@@ -72,8 +72,11 @@ func (server ChatServer) userHandler(client net.Conn) {
 		user_name string
 		tmppassword string
 	)
-	user_record = append(user_record,client)
+	//注意！下面这一句只是不知道暂时放哪里而已。
+	//应该放在mainwin里面，仅仅有它涉及广播。
+	//mainwin_record = append(user_record,client)
 	//TODO:Register(chosen)
+	//TODO:warning of same name.
 	readSize_rl, readError_rl := client.Read(buffer)
 	if readError_rl != nil {
 		PrintErr(clientAddr.String() + " fail")
@@ -83,6 +86,10 @@ func (server ChatServer) userHandler(client net.Conn) {
 		//Decode
 		msg_type = msg[0:2]
 		switch msg_type {
+		//warning:it should be in the endless loop.
+		case "IP":
+			//未来根据需要可以考虑加更多的东西。
+			client.Write([]byte("Success"));
 		case "RG":
 			user_name = msg[2:strings.Index(msg," ")]
 			tmppassword = msg[strings.Index(msg," ") + 1:]
@@ -101,11 +108,11 @@ func (server ChatServer) userHandler(client net.Conn) {
 
 	//TODO:广播上线信息
 	if runtime.NumGoroutine() > 1{
-		for i := range user_record{
-			if user_record[i] != client{
-				user_record[i].Write([]byte("a new user called    log in"))
+		for i := range mainwin_record{
+			if mainwin_record[i] != client{
+				mainwin_record[i].Write([]byte("a new user called    log in"))
 			}else{
-				user_record[i].Write([]byte("You have successfully log in!"))
+				mainwin_record[i].Write([]byte("You have successfully log in!"))
 			}
 		}
 	}
