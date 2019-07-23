@@ -39,3 +39,7 @@ func PrintRegister(name,password string)  {
 	fmt.Printf(GetCurrentTimeString())
 	fmt.Printf("user: %s regist.it's password is: %s\n",name,password)
 }
+
+func PrintConfirm()  {
+	fmt.Printf(GetCurrentTimeString(),"a user want to connect to this server")
+}

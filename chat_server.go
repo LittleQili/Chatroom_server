@@ -12,14 +12,19 @@ const (
 	PING_MSG   = "receive connection from "
 )
 
+type user_logstate struct {
+	password string
+	islogined bool
+}
 //若之后建数据库的话这些都应该写在文件中
 var (
-	password map[string]string
+	user_login map[string]user_logstate
 	cont_log map[string][]byte//暂时未初始化
 )
 //关于信息的解码问题：统一采用两位字母表示。
 //RG：register
 //LI:login
+//IP:chooseip
 var mainwin_record []net.Conn
 //data structure of server
 type ChatServer struct {
@@ -49,7 +54,7 @@ func (server ChatServer) StartListen() {
 	}
 
 	//init
-	password = make(map[string]string)
+	user_login = make(map[string]user_logstate)
 	//main server loop, you should explain how this server loop works
 	for {
 		client, acceptError := server.listener.Accept() //when a user comes in
@@ -77,7 +82,9 @@ func (server ChatServer) userHandler(client net.Conn) {
 	//mainwin_record = append(user_record,client)
 	//TODO:Register(chosen)
 	//TODO:warning of same name.
-	readSize_rl, readError_rl := client.Read(buffer)
+
+	//the first time
+	readSize_rl, readError_rl := client.Read(buffer)//the first time
 	if readError_rl != nil {
 		PrintErr(clientAddr.String() + " fail")
 		client.Close()
@@ -90,17 +97,70 @@ func (server ChatServer) userHandler(client net.Conn) {
 		case "IP":
 			//未来根据需要可以考虑加更多的东西。
 			client.Write([]byte("Success"));
+			//TODO: 仅仅需要接受窗口关闭信息即可。
+			for {
+				readSize_rl, readError_rl = client.Read(buffer)
+				if readError_rl != nil {
+					PrintErr(clientAddr.String() + " fail")
+					client.Close()
+					break;
+				}
+			}
 		case "RG":
 			user_name = msg[2:strings.Index(msg," ")]
 			tmppassword = msg[strings.Index(msg," ") + 1:]
-			
-			password[user_name] = tmppassword
-			PrintRegister(user_name,tmppassword)
-		case "LI":
-			
-			
-		default:
 
+			user_login[user_name] = user_logstate{tmppassword,false}
+			PrintRegister(user_name,tmppassword)
+
+			client.Write([]byte("Success"))
+		case "LI":
+			user_name = msg[2:strings.Index(msg," ")]
+			tmppassword = msg[strings.Index(msg," ") + 1:]
+
+			truepassword,user_exist := user_login[user_name]
+
+			if(user_exist&&truepassword.password == tmppassword){//success
+			 	tmpls := user_logstate{user_login[user_name].password,true}
+				user_login[user_name] = tmpls
+				client.Write([]byte("Success"))
+			}else{//fail
+				if(!user_exist){//用户不存在
+					client.Write([]byte("Notexist"))
+				} else {//密码错误
+					client.Write([]byte("WrongPassword"))
+				}
+
+				for{
+					readSize_rl, readError_rl = client.Read(buffer)
+					if readError_rl != nil {
+						PrintErr(clientAddr.String() + " fail")
+						client.Close()
+						break;
+					}else{
+						msg = string(buffer[0:readSize_rl])
+						user_name = msg[0:strings.Index(msg," ")]
+						tmppassword = msg[strings.Index(msg," ") + 1:]
+
+						truepassword,user_exist = user_login[user_name]
+						if(user_exist&&truepassword.password == tmppassword){//success
+							tmpls := user_logstate{user_login[user_name].password,true}
+							user_login[user_name] = tmpls
+							client.Write([]byte("Success"))
+							break;
+						}else{//fail
+							if(!user_exist){//用户不存在
+								client.Write([]byte("Notexist"))
+							} else {//密码错误
+								client.Write([]byte("WrongPassword"))
+							}
+						}
+					}
+				}
+			}
+		case "MW":
+
+		default:
 
 		}
 	}
@@ -135,4 +195,6 @@ func (server ChatServer) userHandler(client net.Conn) {
 
 		}
 	}
+
+
 }
