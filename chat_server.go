@@ -3,7 +3,7 @@ package chatroom
 import (
 	"net"
 	"strconv"
-	"runtime"
+	//"runtime"
 	"strings"
 	)
 
@@ -19,13 +19,13 @@ type user_logstate struct {
 //若之后建数据库的话这些都应该写在文件中
 var (
 	user_login map[string]user_logstate
+	mainwin_record []net.Conn
 	cont_log map[string][]byte//暂时未初始化
 )
 //关于信息的解码问题：统一采用两位字母表示。
 //RG：register
 //LI:login
 //IP:chooseip
-var mainwin_record []net.Conn
 //data structure of server
 type ChatServer struct {
 	listenAddr string
@@ -82,7 +82,7 @@ func (server ChatServer) userHandler(client net.Conn) {
 	//mainwin_record = append(user_record,client)
 	//TODO:Register(chosen)
 	//TODO:warning of same name.
-
+	//TODO:Login(including visitor)
 	//the first time
 	readSize_rl, readError_rl := client.Read(buffer)//the first time
 	if readError_rl != nil {
@@ -97,6 +97,7 @@ func (server ChatServer) userHandler(client net.Conn) {
 		case "IP":
 			//未来根据需要可以考虑加更多的东西。
 			client.Write([]byte("Success"));
+			PrintConfirm();
 			//TODO: 仅仅需要接受窗口关闭信息即可。
 			for {
 				readSize_rl, readError_rl = client.Read(buffer)
@@ -120,13 +121,15 @@ func (server ChatServer) userHandler(client net.Conn) {
 
 			truepassword,user_exist := user_login[user_name]
 
-			if(user_exist&&truepassword.password == tmppassword){//success
+			if(user_exist&&!truepassword.islogined&&truepassword.password == tmppassword){//success
 			 	tmpls := user_logstate{user_login[user_name].password,true}
 				user_login[user_name] = tmpls
 				client.Write([]byte("Success"))
 			}else{//fail
 				if(!user_exist){//用户不存在
 					client.Write([]byte("Notexist"))
+				}else if(truepassword.islogined){//已经登陆过
+					client.Write([]byte("Logined"))
 				} else {//密码错误
 					client.Write([]byte("WrongPassword"))
 				}
@@ -151,6 +154,8 @@ func (server ChatServer) userHandler(client net.Conn) {
 						}else{//fail
 							if(!user_exist){//用户不存在
 								client.Write([]byte("Notexist"))
+							}else if(truepassword.islogined){//已经登陆过
+								client.Write([]byte("Logined"))
 							} else {//密码错误
 								client.Write([]byte("WrongPassword"))
 							}
@@ -159,42 +164,35 @@ func (server ChatServer) userHandler(client net.Conn) {
 				}
 			}
 		case "MW":
+			user_name = msg[2:readSize_rl]
+			for i := range mainwin_record{
+				mainwin_record[i].Write([]byte("a new user called "+user_name+" log in"))
+			}
+			mainwin_record = append(mainwin_record,client)
+			PrintClientMsg(PING_MSG + clientAddr.String()) //print a log to show that a new client comes in
+			for {                                          //main serve loop
+				readSize_rl, readError_rl = client.Read(buffer) //why we can put a read in for loop?
 
+				if readError_rl != nil {
+					PrintErr(clientAddr.String() + " fail") //if read error occurs, close the connection with user
+					client.Close()
+					break
+				} else {
+					msg = string(buffer[0:readSize_rl])                //or convert the byte stream to a string
+					PrintClientMsg(clientAddr.String() + ":" + msg) //then print the message
+					//设想中的msg应该有如下几种：
+					//user_name == tmp_name:send and print to all
+					//此功能可以遍历流程实现（chosen），也可进入其他线程
+					for i := range mainwin_record{
+						if(mainwin_record[i] != client){
+							mainwin_record[i].Write([]byte(user_name+" : "+msg))
+						}
+					}
+				}
+			}
 		default:
 
 		}
 	}
-	//TODO:Login(including visitor)
-
-	//TODO:广播上线信息
-	if runtime.NumGoroutine() > 1{
-		for i := range mainwin_record{
-			if mainwin_record[i] != client{
-				mainwin_record[i].Write([]byte("a new user called    log in"))
-			}else{
-				mainwin_record[i].Write([]byte("You have successfully log in!"))
-			}
-		}
-	}
-
-	PrintClientMsg(PING_MSG + clientAddr.String()) //print a log to show that a new client comes in
-	for {                                          //main serve loop
-		readSize, readError := client.Read(buffer) //why we can put a read in for loop?
-
-		if readError != nil {
-			PrintErr(clientAddr.String() + " fail") //if read error occurs, close the connection with user
-			client.Close()
-			break
-		} else {
-			msg = string(buffer[0:readSize])                //or convert the byte stream to a string
-			//设想中的msg应该有如下几种：
-			//user_name == tmp_name:send and print to all
-			//此功能可以遍历流程实现（chosen），也可进入其他线程
-			PrintClientMsg(clientAddr.String() + ":" + msg) //then print the message
-			client.Write(buffer[0:readSize])                //send the msg back to user
-
-		}
-	}
-
 
 }
