@@ -77,6 +77,7 @@ func (server ChatServer) userHandler(client net.Conn) {
 		msg_type string
 		user_name string
 		tmppassword string
+		new_pswd string
 	)
 	//注意！下面这一句只是不知道暂时放哪里而已。
 	//应该放在mainwin里面，仅仅有它涉及广播。
@@ -326,6 +327,42 @@ func (server ChatServer) userHandler(client net.Conn) {
 							} else {
 								client.Write([]byte("NameExist"))
 							}
+						}
+					}
+				}
+			}
+		case "CP":
+			user_name = msg[2:strings.Index(msg," ")]
+			tmppassword = msg[strings.Index(msg," ") + 1:strings.Index(msg,"~#@Password@#~")]
+			new_pswd = msg[strings.Index(msg,"~#@Password@#~") + 14:]
+
+			true_pswd := user_login[user_name]
+			if(true_pswd.password == tmppassword){
+				tmpls := user_logstate{new_pswd,true}
+				user_login[user_name] = tmpls
+				client.Write([]byte("Success"))
+			}else{
+				client.Write([]byte("Fail"))
+				for{
+					readSize_rl, readError_rl = client.Read(buffer)
+
+					if readError_rl != nil {
+						PrintErr(clientAddr.String() + " fail")
+						client.Close()
+						break;
+					}else{
+						user_name = msg[0:strings.Index(msg," ")]
+						tmppassword = msg[strings.Index(msg," ") + 1:strings.Index(msg,"~#@Password@#~")]
+						new_pswd = msg[strings.Index(msg,"~#@Password@#~") + 14:]
+
+						true_pswd = user_login[user_name]
+						if(true_pswd.password == tmppassword){
+							tmpls := user_logstate{new_pswd,true}
+							user_login[user_name] = tmpls
+							client.Write([]byte("Success"))
+							break
+						}else {
+							client.Write([]byte("Fail"))
 						}
 					}
 				}
