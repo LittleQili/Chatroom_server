@@ -3,7 +3,7 @@ package chatroom
 import (
 	"net"
 	"strconv"
-	//"runtime"
+	//	"runtime"
 	"strings"
 	"fmt"
 	)
@@ -21,7 +21,8 @@ type user_logstate struct {
 var (
 	user_login map[string]user_logstate
 	mainwin_record map[string]net.Conn
-	cont_log map[string][]byte//暂时未初始化
+	administor string
+	isprivate bool
 )
 //关于信息的解码问题：统一采用两位字母表示。
 //RG：register
@@ -56,6 +57,8 @@ func (server ChatServer) StartListen() {
 	//init
 	user_login = make(map[string]user_logstate)
 	mainwin_record = make(map[string]net.Conn)
+	administor = ""
+	isprivate = false
 	//main server loop, you should explain how this server loop works
 	for {
 		client, acceptError := server.listener.Accept() //when a user comes in
@@ -101,17 +104,22 @@ func (server ChatServer) userHandler(client net.Conn) {
 			var user_all string
 			if readSize_rl == 2{
 				client.Write([]byte("Success"))
+				PrintConfirm()
 			}else {
-				user_all = ""
-				for i := range mainwin_record{
-					user_all += i + "\n"
+				PrintQuiry()
+				if isprivate{
+					client.Write([]byte("Private"))
+				}else{
+					user_all = ""
+					for i := range mainwin_record{
+						user_all += i + "\n"
+					}
+					if user_all == ""{
+						user_all = "None"
+					}
+					client.Write([]byte(user_all))
 				}
-				if user_all == ""{
-					user_all = "None"
-				}
-				client.Write([]byte(user_all))
 			}
-			PrintConfirm()
 			//TODO: 仅仅需要接受窗口关闭信息即可。
 			for {
 				readSize_rl, readError_rl = client.Read(buffer)
@@ -122,27 +130,31 @@ func (server ChatServer) userHandler(client net.Conn) {
 				}else {
 					msg = string(buffer[0:readSize_rl])
 					if msg == "Q"{
-						user_all = ""
-						for i := range mainwin_record{
-							user_all += i + "\n"
+						PrintQuiry()
+						if isprivate{
+							client.Write([]byte("Private"))
+						}else {
+							user_all = ""
+							for i := range mainwin_record{
+								user_all += i + "\n"
+							}
+							if user_all == ""{
+								user_all = "None"
+							}
+							client.Write([]byte(user_all))
 						}
-						if user_all == ""{
-							user_all = "None"
-						}
-						client.Write([]byte(user_all))
 					}
 				}
 			}
 		case "RG":
 			user_name = msg[2:strings.Index(msg," ")]
-			fmt.Println("name",user_name,"\n")
 			tmppassword = msg[strings.Index(msg," ") + 1:]
-			PrintRegister(user_name,tmppassword)
 
 			_,isusere := user_login[user_name]
 			if !isusere {
 				user_login[user_name] = user_logstate{tmppassword,false}
 				client.Write([]byte("Success"))
+				PrintRegister(user_name)
 			}else{
 				client.Write([]byte("Fail"))
 				for{
@@ -162,7 +174,7 @@ func (server ChatServer) userHandler(client net.Conn) {
 						if(!isusere){
 							user_login[user_name] = user_logstate{tmppassword,false}
 							client.Write([]byte("Success"))
-							PrintRegister(user_name,tmppassword)
+							PrintRegister(user_name)
 							break
 						}else{
 							client.Write([]byte("Fail"))
@@ -180,6 +192,7 @@ func (server ChatServer) userHandler(client net.Conn) {
 			 	tmpls := user_logstate{user_login[user_name].password,true}
 				user_login[user_name] = tmpls
 				client.Write([]byte("Success"))
+				PrintLogin(user_name)
 			}else{//fail
 				if(!user_exist){//用户不存在
 					client.Write([]byte("Notexist"))
@@ -205,6 +218,7 @@ func (server ChatServer) userHandler(client net.Conn) {
 							tmpls := user_logstate{user_login[user_name].password,true}
 							user_login[user_name] = tmpls
 							client.Write([]byte("Success"))
+							PrintLogin(user_name)
 							break
 						}else{//fail
 							if(!user_exist){//用户不存在
@@ -226,7 +240,8 @@ func (server ChatServer) userHandler(client net.Conn) {
 				user_all = i + " "
 			}
 			if user_all == ""{
-				client.Write([]byte("You are the only one in this chatroom! \n Invite more friends here! "))
+				client.Write([]byte("You are the only one in this chatroom! \n Congratulation! You become the administrator of this chatroom! \n Invite more friends here! "))
+				administor = user_name
 			}else {
 				user_all += "."
 				client.Write([]byte(GetCurrentTimeString() + " These users are online: \n" + user_all))
@@ -237,7 +252,7 @@ func (server ChatServer) userHandler(client net.Conn) {
 				readSize_rl, readError_rl = client.Read(buffer) //why we can put a read in for loop?
 
 				if readError_rl != nil {
-					PrintErr(clientAddr.String() + " fail") //if read error occurs, close the connection with user
+					PrintErr(clientAddr.String() +user_name +" log out") //if read error occurs, close the connection with user
 					tmpmu := user_logstate{user_login[user_name].password,false}
 					user_login[user_name] = tmpmu
 					delete(mainwin_record,user_name)
@@ -252,7 +267,7 @@ func (server ChatServer) userHandler(client net.Conn) {
 					switch msg_type {
 					case "CA":
 						msg = msg[2:]
-						PrintClientMsg(clientAddr.String() + ":" + msg) //then print the message
+						PrintClientMsg(clientAddr.String() + ":" +user_name + " "+ msg) //then print the message
 						//设想中的msg应该有如下几种：
 						//user_name == tmp_name:send and print to all
 						//此功能可以遍历流程实现（chosen），也可进入其他线程
@@ -267,14 +282,22 @@ func (server ChatServer) userHandler(client net.Conn) {
 						msg = msg[2:]
 						mainwin_record[msg] = mainwin_record[user_name]
 						delete(mainwin_record,user_name)
+						PrintClientMsg(clientAddr.String() + ":" +user_name + " Change his/her name to "+ msg) //then print the message
 						for i := range mainwin_record{
 							if(mainwin_record[i] != client){
 								mainwin_record[i].Write([]byte(GetCurrentTimeString()+":\n"+user_name+" changes his/her name to "+msg))
 							}
 						}
 						user_name = msg
+					case "PP":
+						if msg[2:] == "Public"{
+							isprivate = false
+							PrintClientMsg(clientAddr.String() + ":" +user_name + " Change to public") //then print the message
+						}else if msg[2:] == "Private"{
+							isprivate = true
+							PrintClientMsg(clientAddr.String() + ":" +user_name + " Change to private") //then print the message
+						}
 					}
-					
 				}
 			}
 		case "CN":
@@ -282,7 +305,6 @@ func (server ChatServer) userHandler(client net.Conn) {
 			msg = msg[strings.Index(msg," ") + 1:]
 			newname := msg[0:strings.Index(msg," ")]
 			tmppassword = msg[strings.Index(msg," ") + 1:]
-			fmt.Println("name",user_name," new name ",newname)
 
 			_,isexist := user_login[newname]
 			var tmpstat user_logstate
@@ -312,7 +334,6 @@ func (server ChatServer) userHandler(client net.Conn) {
 						msg = msg[strings.Index(msg," ") + 1:]
 						newname := msg[0:strings.Index(msg," ")]
 						tmppassword = msg[strings.Index(msg," ") + 1:]
-						fmt.Println("name",user_name," new name ",newname)
 						_,isexist = user_login[newname]
 
 						if tmppassword == user_login[user_name].password&&!isexist {
@@ -341,6 +362,7 @@ func (server ChatServer) userHandler(client net.Conn) {
 				tmpls := user_logstate{new_pswd,true}
 				user_login[user_name] = tmpls
 				client.Write([]byte("Success"))
+				PrintClientMsg(clientAddr.String() + ":" +user_name + " Change his/her password ") //then print the message
 			}else{
 				client.Write([]byte("Fail"))
 				for{
@@ -360,9 +382,45 @@ func (server ChatServer) userHandler(client net.Conn) {
 							tmpls := user_logstate{new_pswd,true}
 							user_login[user_name] = tmpls
 							client.Write([]byte("Success"))
+							PrintClientMsg(clientAddr.String() + ":" +user_name + " Change his/her password ") //then print the message
 							break
 						}else {
 							client.Write([]byte("Fail"))
+						}
+					}
+				}
+			}
+		case "AC":
+			msg_type = msg[2:8]
+			switch msg_type {
+			case "logout":
+				towrite := ""
+				for i := range mainwin_record{
+					if i != msg[8:]{
+						towrite += "\n"+i
+					}
+				}
+				if(towrite == ""){
+					client.Write([]byte("None"))
+				}else{
+					client.Write([]byte("Choose one to be the administrator :"+towrite))
+					for{
+						readSize_rl, readError_rl = client.Read(buffer)
+						if readError_rl != nil {
+							PrintErr(clientAddr.String() + " fail")
+							client.Close()
+							break
+						}else{
+							msg = string(buffer[0:readSize_rl])
+							_,isexist := mainwin_record[msg]
+							if isexist{
+								administor = msg
+								client.Write([]byte("Success"))
+								mainwin_record[msg].Write([]byte("Congratulation! You become the administrator of this chatroom!"))
+								break
+							}else{
+								client.Write([]byte("Notexist"))
+							}
 						}
 					}
 				}

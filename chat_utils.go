@@ -22,24 +22,31 @@ func GetCurrentTimeString() string {
 
 //print a log info
 func PrintLog(msg string) {
-	fmt.Printf(CHAT_LOG, GetCurrentTimeString(), msg)
+	fmt.Printf(CHAT_LOG, GetCurrentTimeString(), msg+"\n")
 }
 
 //print an error info
 func PrintErr(msg string) {
-	fmt.Printf(COLOR_RED+CHAT_ERR+COLOR_RESET, GetCurrentTimeString(), msg)
+	fmt.Printf(GetCurrentTimeString(), msg+"\n")
 }
 
 //print message receive from some client
 func PrintClientMsg(msg string) {
-	fmt.Printf(COLOR_GREEN+CHAT_MSG+COLOR_RESET, GetCurrentTimeString(), msg)
+	fmt.Printf(GetCurrentTimeString(), msg+"\n")
 }
 
-func PrintRegister(name,password string)  {
+func PrintRegister(name string)  {
 	fmt.Printf(GetCurrentTimeString())
-	fmt.Printf("user: %s regist.it's password is: %s\n",name,password)
+	fmt.Printf("user: %s regist.",name+"\n")
 }
 
 func PrintConfirm()  {
-	fmt.Printf(GetCurrentTimeString(),"a user want to connect to this server")
+	fmt.Printf(GetCurrentTimeString(),"a user want to connect to this server\n")
+}
+func PrintQuiry()  {
+	fmt.Printf(GetCurrentTimeString(),"a user want to quiry user in this chatroom\n")
+}
+func PrintLogin(name string)  {
+	fmt.Printf(GetCurrentTimeString())
+	fmt.Printf("user: %s login.",name+"\n")
 }
