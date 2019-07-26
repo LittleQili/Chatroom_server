@@ -3,7 +3,6 @@ package chatroom
 import (
 	"net"
 	"strconv"
-	//	"runtime"
 	"strings"
 	"fmt"
 	)
@@ -74,7 +73,6 @@ func (server ChatServer) StartListen() {
 func (server ChatServer) userHandler(client net.Conn) {
 	buffer := make([]byte, 1024)      //create a buffer
 	clientAddr := client.RemoteAddr() //get user's address
-	// 记得设置游客常量
 	var (
 		msg string
 		msg_type string
@@ -82,12 +80,7 @@ func (server ChatServer) userHandler(client net.Conn) {
 		tmppassword string
 		new_pswd string
 	)
-	//注意！下面这一句只是不知道暂时放哪里而已。
-	//应该放在mainwin里面，仅仅有它涉及广播。
-	//mainwin_record = append(user_record,client)
-	//TODO:Register(chosen)
-	//TODO:warning of same name.
-	//TODO:Login(including visitor)
+
 	//the first time
 	readSize_rl, readError_rl := client.Read(buffer)//the first time
 	if readError_rl != nil {
@@ -237,7 +230,7 @@ func (server ChatServer) userHandler(client net.Conn) {
 			user_all := ""
 			for i := range mainwin_record{
 				mainwin_record[i].Write([]byte(GetCurrentTimeString()+"\nA new user called "+user_name+" log in"))
-				user_all = i + " "
+				user_all += i + " "
 			}
 			if user_all == ""{
 				client.Write([]byte("You are the only one in this chatroom! \n Congratulation! You become the administrator of this chatroom! \n Invite more friends here! "))
@@ -426,7 +419,6 @@ func (server ChatServer) userHandler(client net.Conn) {
 				}
 			}
 		default:
-
 		}
 	}
 
